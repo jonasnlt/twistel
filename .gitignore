@@ -1,0 +1,13 @@
+# Build products
+.build/
+*.dSYM
+
+# Finished release builds (app, ZIP, DMG, checksums), made by scripts/release.sh
+dist/
+
+# Scratch files
+.scratch/
+
+# macOS and editor files
+.DS_Store
+*.xcuserstate
