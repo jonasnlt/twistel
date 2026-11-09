@@ -269,6 +269,14 @@ enum ToolDriver {
             throw DriverError.usage("Unknown tool \(tool). Tools: convert, \(ToolID.allCases.map(\.rawValue).joined(separator: ", ")).")
         }
         let formats = files.compactMap(FileFormat.detect)
+        // preset=<key>: a preset of the tool's fan ("crop.16x9", "rotate.3", "compress.5mb", "video.720p"), as the ring runs it.
+        let presetKey = options.string("preset", default: "")
+        if !presetKey.isEmpty, let preset = RingPresets.presets(for: id, formats: formats).first(where: { $0.key == presetKey }) {
+            guard preset.action != .customize else { throw DriverError.usage("customize opens the window.") }
+            return RingPresets.jobs(preset, files: files).map { $0.start() }
+        } else if !presetKey.isEmpty, !RingPresets.presets(for: id, formats: formats).isEmpty {
+            throw DriverError.usage("No preset \(presetKey) for \(id.rawValue). Presets: \(RingPresets.presets(for: id, formats: formats).map(\.key).joined(separator: ", ")).")
+        }
         guard id.applies(to: formats) else {
             throw DriverError.usage("\(id.title) is not offered for \(files.map(\.lastPathComponent).joined(separator: ", ")).")
         }

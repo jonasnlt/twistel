@@ -15,7 +15,7 @@ enum ToolGroup: String, CaseIterable {
 extension ToolID {
     var group: ToolGroup {
         switch self {
-        case .extractImages, .pdfArchive:
+        case .extractImages, .pdfArchive, .removeAudio:
             return .immediate
         case .compress, .recognizeText, .resizeImage, .rotateImage, .createPDF, .createCollage, .changeVideoSpeed, .normalizeAudio,
              .audioToVideo, .audioChannels, .transcribe, .mergePDF, .joinVideos, .watermarkPDF, .pageNumbersPDF, .splitPDF,
@@ -89,6 +89,8 @@ enum QuickRun {
             return ExtractImagesToolView.jobs(session)
         case .pdfArchive:
             return PDFArchiveToolView.jobs(session)
+        case .removeAudio:
+            return RemoveAudioToolView.jobs(session)
         case .compress:
             let targetKB = try options.value("targetKB", Double.self, default: 0)
             return CompressToolView.jobs(session, .init(

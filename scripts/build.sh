@@ -7,9 +7,9 @@ cd "$(dirname "$0")/.."
 
 # Swift module: always "Twistel" (a module name can't contain a space); the app, its executable and the menu bar use APP_NAME.
 MODULE_NAME="Twistel"
-# Version 1.0.0; the build number goes up with every build of the same version that is passed on.
-VERSION="1.0.0"
-BUILD_NUMBER="1"
+# Version 1.1.0; the build number goes up with every build of the same version that is passed on.
+VERSION="1.1.0"
+BUILD_NUMBER="2"
 DEPLOYMENT_TARGET="26.0"
 
 CONFIG="debug"

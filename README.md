@@ -22,7 +22,13 @@ Drag files in the Finder and hold a key while dragging:
 
 - Move onto an item and let go. A small pill at the top of the screen shows the progress, then a card offers **Open**, **Show in
   Finder** and **Undo**.
-- Switch rings while dragging by holding another key. Letting go outside the ring cancels.
+- Switch rings while dragging by holding another key, or with a mouse by scrolling over the ring: one wheel step (or one swipe on a
+  Magic Mouse) is one ring, up or down, sideways too. Letting go outside the ring cancels.
+- **Crop**, **Rotate** and **Compress** have presets: rest the pointer on the item for a moment, or move out over its edge, and a
+  fan of presets opens outside it. Drop the files on a preset and it runs at once: aspect ratios 1:1, 4:3, 3:2, 16:9, 9:16 and 4:5
+  (the cut follows faces, people or the main subject, like the social media presets), 90° left or right and 180°, at most 1, 5, 10
+  or 25 MB, and 1080p or 720p for videos. **Customize …** opens the tool’s window. A size limit is kept for sure: a result that
+  doesn’t fit is not saved, a note says why.
 - The last item, “More …”, lists everything that works for the file, with a search field.
 - Tools with settings open a small window that remembers your last values; Return starts. Hold **⌥ Option** as well when you let go
   to run the tool straight away with the last values.
@@ -41,31 +47,32 @@ can be switched in Settings › General.
 
 ### Convert
 
-303 conversions between these formats:
+314 conversions between these formats:
 
 | Kind | Formats |
 | --- | --- |
-| Images | JPG, PNG, WebP, HEIC, TIFF, SVG (read only), AVIF, BMP, to PDF |
+| Images | JPG, PNG, WebP, HEIC, TIFF, SVG (read only), AVIF, BMP, to PDF; ICO and ICNS icons with all their sizes (write only, from PNG, JPG, HEIC and SVG) |
 | Audio | MP3, M4A, WAV, FLAC, OGG, Opus, AIFF, WMA |
 | Video | MP4, MOV, MKV, WebM, AVI, WMV, GIF, audio track as MP3 |
 | Documents | PDF, DOCX, DOC, ODT, RTF, RTFD (read), text clipping (read), HTML, Markdown, TXT, EPUB |
 | Spreadsheets | XLSX, XLS, ODS, CSV, TSV |
 | Presentations | PPTX, PPT, ODP |
 | Subtitles | SRT, VTT |
-| Archives | ZIP, TAR, GZIP, RAR (read only) |
+| Archives | ZIP, TAR, GZIP, RAR and 7Z (read only) |
 
 Converting a PDF to Word, Markdown, EPUB or Excel recognizes the page layout (headings, lists, tables, columns, highlighter marks)
 and reads scanned pages with text recognition.
 
 ### Tools
 
-41 tools, among them:
+42 tools, among them:
 
 - Any file: compress, edit metadata
 - Images: edit photo, add background, crop, redact, resize, rotate and flip, combine into a PDF, collage, social media &
   sharing presets, cut out subject
 - Images and PDFs: recognize text (OCR), read QR codes, annotate
-- Video: trim, crop, change speed, join, save frames, split, redact, social media presets, burn in subtitles
+- Video: trim, crop, change speed, join, save frames, split, redact, social media presets, burn in subtitles, remove the sound
+  (the picture is copied, not encoded again)
 - Audio: normalize loudness, visualize, trim, channels, bleep out
 - Audio and video: transcribe (text, SRT, VTT) with whisper.cpp
 - PDF: merge, reorder pages, split, extract images, password, watermark, page numbers, archive as PDF/A, redact (with a check
@@ -79,7 +86,7 @@ and reads scanned pages with text recognition.
 
 ## Installation
 
-1. Download `twistel-1.0.0.dmg` from the [Releases page](https://github.com/jonasnlt/twistel/releases).
+1. Download `twistel-1.1.0.dmg` from the [Releases page](https://github.com/jonasnlt/twistel/releases).
 2. Open the DMG and drag **twistel** onto **Applications**. Start it from there: the Finder’s
    right-click entries only appear for the copy in Applications.
 3. First start (“Open Anyway”): the app is not notarized by Apple (that needs a paid developer account), so macOS warns the first
@@ -108,12 +115,14 @@ it is needed and how to install it. Install [Homebrew](https://brew.sh), then:
 | `brew install qpdf` | set and remove PDF passwords (AES-256) | *PDF password* is not available |
 | `brew install whisper-cpp` | transcription and subtitles from speech (also needs a speech model, see [docs/INSTALLATION.md](docs/INSTALLATION.md#6-speech-model-for-transcription-whispercpp)) | *Transcribe* is not available |
 | `brew install poppler` | an additional check after redacting a PDF | the check runs without this one reader |
-| `brew install unar` | open RAR archives | RAR only if macOS’s built-in `tar` can open it, otherwise a note |
+| `brew install unar` | open RAR archives | RAR only if macOS’s built-in `tar` can open it, otherwise a note (7Z needs nothing: macOS’s `tar` opens it) |
 
 ## Privacy
 
-- No network access: twistel has no telemetry, no analytics, no update check and no online features. It never connects anywhere
-  itself; *Check for Updates …* and the link in the About window only hand an address to your browser.
+- No network access: twistel contains no networking code. The release build links no networking frameworks and calls no
+  networking APIs, and every release is checked for this before it is published (`scripts/check-no-network.sh`). There is no
+  telemetry, no analytics, no update check and no online feature. Share and AirDrop are handled by macOS when you choose them, and
+  *Check for Updates …* and the link in the About window only hand an address to your browser.
 - Helper programs run without internet: twistel starts every helper program inside a macOS sandbox (`sandbox-exec`) that blocks
   all network access, including name lookups (DNS). If that lock does not work on a Mac, twistel does not start the program at all
   and says so, instead of running it unprotected.
@@ -133,6 +142,8 @@ it is needed and how to install it. Install [Homebrew](https://brew.sh), then:
 - *Cut out subject* uses Apple’s subject detection; very fine hair can lose single strands.
 - Office files look best with LibreOffice installed; without it, Apple’s text system loses headers and some images and tables.
 - Transcription needs whisper.cpp and a speech model of 1.6 to 3.1 GB; a Mac with 8 GB of memory should use the smaller model.
+- Changing rings by scrolling is made for a mouse. On a trackpad it needs a click held while scrolling with two fingers.
+- 7Z archives with a password can’t be opened (twistel says so).
 - Pages, Numbers and Keynote files are not supported.
 - Tested on macOS 27 so far; macOS 26 is the minimum the app is built for.
 
@@ -154,7 +165,7 @@ from `Icon/AppIcon.icon`.
 The debug build is called twistel dev (bundle ID `io.github.jonasnlt.twistel.debug`, “DEV” badge on the icon, no Finder
 services unless built with `TWISTEL_DEV_SERVICES=1`); the release build is twistel (`io.github.jonasnlt.twistel`). They keep
 separate settings, and only one of them runs at a time. `scripts/release.sh` checks the signature, the hardened runtime and that
-the release build contains no debug parts.
+the release build contains no debug parts and no networking code.
 
 Layout of the source code:
 

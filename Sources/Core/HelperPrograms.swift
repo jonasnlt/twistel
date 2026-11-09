@@ -133,9 +133,12 @@ enum HelperPrograms {
     }
 
     /// The program a tool cannot do without, if it is missing.
-    static func missing(forTool tool: ToolID) -> HelperProgram? {
+    /// `formats`: the files the tool is offered for; some tools need ffmpeg only for formats Apple can't write (removing the sound
+    /// from MKV, WebM, AVI or WMV).
+    static func missing(forTool tool: ToolID, formats: [FileFormat] = []) -> HelperProgram? {
         let needed: HelperProgram?
         switch tool {
+        case .removeAudio: needed = formats.allSatisfy(VideoOps.nativeAudioRemoval.contains) ? nil : .ffmpeg
         case .transcribe: needed = .whisper
         case .pdfPassword: needed = .qpdf
         case .pdfArchive: needed = .ghostscript

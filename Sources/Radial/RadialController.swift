@@ -30,6 +30,8 @@ final class RadialController: DragMonitorDelegate {
     private var urls: [URL] = []
     private var formats: [FileFormat] = []
     private(set) var ring: RingKind = .convert
+    /// The ring the held keys ask for. Scrolling can show another one; only a change of the keys takes the ring back to theirs.
+    private var keysRing: RingKind?
     private var layout: RingLayout = .empty
     private var visible = false
     /// A hide that is still fading out; a ring opened meanwhile cancels it.
@@ -65,6 +67,7 @@ final class RadialController: DragMonitorDelegate {
         dragMonitor = monitor
         pickerMode = false
         guard let ring = settings().ringKeys.ring(for: held) else { return }
+        keysRing = ring
         present(urls: urls, at: point, ring: ring)
     }
 
@@ -75,8 +78,11 @@ final class RadialController: DragMonitorDelegate {
             return
         }
         if !visible {
+            keysRing = wanted
             present(urls: urls, at: point, ring: wanted)
-        } else if wanted != ring {
+        } else if wanted != keysRing {
+            keysRing = wanted
+            guard wanted != ring else { return }
             ring = wanted
             reloadItems()
         }
@@ -155,7 +161,7 @@ final class RadialController: DragMonitorDelegate {
 
         let view = panel.radialView
         view.interactive = pickerMode
-        let clamped = Self.clampedCenter(point, in: screen.frame, radius: view.discRadius + 8)
+        let clamped = Self.clampedCenter(point, in: Self.usableFrame(of: screen), radius: view.discRadius + 8)
         view.center = NSPoint(x: clamped.x - screen.frame.minX, y: clamped.y - screen.frame.minY)
         view.onSelect = { [weak self] item, option in self?.select(item, option: option) }
         view.onCancel = { [weak self] in self?.hide() }
@@ -193,6 +199,13 @@ final class RadialController: DragMonitorDelegate {
         panel.radialView.slots = []
     }
 
+    /// The screen without the notch: nothing of the ring or its fans may go under it.
+    static func usableFrame(of screen: NSScreen) -> NSRect {
+        var frame = screen.frame
+        frame.size.height -= screen.safeAreaInsets.top
+        return frame
+    }
+
     static func clampedCenter(_ point: NSPoint, in frame: NSRect, radius: CGFloat) -> NSPoint {
         NSPoint(
             x: min(max(point.x, frame.minX + radius), frame.maxX - radius),
@@ -221,12 +234,15 @@ final class RadialController: DragMonitorDelegate {
         dragMonitor?.markHandled()
     }
 
-    private func switchRing(by step: Int) {
+    /// Tab in the keyboard ring, or scrolling over any open ring.
+    func switchRing(by step: Int) {
         let all = RingKind.allCases
         let index = all.firstIndex(of: ring) ?? 0
         ring = all[(index + step + all.count) % all.count]
+        DiagnosticLog.log("ring switched to \(ring.rawValue) (\(pickerMode ? "keyboard ring" : "scrolling"))")
         panel?.radialView.clearHighlight()
         reloadItems()
+        panel?.radialView.announce()
     }
 
     /// What the ring shows for these files, as `RadialView` takes it. Kept apart so tests and the test access fill a ring the same way.

@@ -34,6 +34,8 @@ enum FormatCategory: String, CaseIterable {
 
 enum FileFormat: String, CaseIterable, Identifiable, Hashable {
     case jpg, png, webp, heic, tiff, svg, avif, bmp, gif
+    /// Icons for Windows (ICO) and the Mac (ICNS): only written, several sizes in one file (`IconWriter`).
+    case ico, icns
     case mp3, m4a, wav, flac, ogg, opus, aiff, wma
     case mp4, mov, mkv, webm, avi, wmv
     case pdf, docx, txt
@@ -43,30 +45,33 @@ enum FileFormat: String, CaseIterable, Identifiable, Hashable {
     case pptx, ppt, odp
     case srt, vtt
     case zip, tar, gz, rar
+    case sevenZip = "7z"
 
     var id: String { rawValue }
 
     static let images: [FileFormat] = [.jpg, .png, .webp, .heic, .tiff, .svg, .avif, .bmp]
     static let imageTargets: [FileFormat] = [.jpg, .png, .webp, .heic, .tiff, .avif, .bmp, .pdf]
+    /// Made from PNG, JPG, HEIC and SVG.
+    static let iconTargets: [FileFormat] = [.ico, .icns]
     static let audio: [FileFormat] = [.mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff, .wma]
     static let video: [FileFormat] = [.mp4, .mov, .mkv, .webm, .avi, .wmv]
     static let subtitles: [FileFormat] = [.srt, .vtt]
     static let spreadsheets: [FileFormat] = [.xlsx, .xls, .ods, .csv, .tsv]
     static let presentations: [FileFormat] = [.pptx, .ppt, .odp]
-    static let archives: [FileFormat] = [.zip, .tar, .gz, .rar]
-    /// RAR is a proprietary format: it can be extracted, but not written.
+    static let archives: [FileFormat] = [.zip, .tar, .gz, .rar, .sevenZip]
+    /// RAR is a proprietary format: it can be extracted, but not written. 7Z is only read (macOS's own tar unpacks it).
     static let archiveTargets: [FileFormat] = [.zip, .tar, .gz]
 
     var category: FormatCategory {
         switch self {
-        case .jpg, .png, .webp, .heic, .tiff, .svg, .avif, .bmp: return .image
+        case .jpg, .png, .webp, .heic, .tiff, .svg, .avif, .bmp, .ico, .icns: return .image
         case .gif: return .video
         case .mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff, .wma: return .audio
         case .mp4, .mov, .mkv, .webm, .avi, .wmv: return .video
         case .pdf, .docx, .txt, .doc, .odt, .rtf, .html, .md, .xlsx, .xls, .ods, .csv, .tsv, .pptx, .ppt, .odp, .epub, .rtfd, .textClipping:
             return .document
         case .srt, .vtt: return .subtitle
-        case .zip, .tar, .gz, .rar: return .archive
+        case .zip, .tar, .gz, .rar, .sevenZip: return .archive
         }
     }
 
@@ -100,6 +105,8 @@ enum FileFormat: String, CaseIterable, Identifiable, Hashable {
         case .html: return ["html", "htm"]
         case .aiff: return ["aiff", "aif"]
         case .textClipping: return ["textclipping"]
+        // Only written: a dragged .ico or .icns is not one of twistel's files.
+        case .ico, .icns: return []
         default: return [rawValue]
         }
     }
@@ -115,6 +122,8 @@ enum FileFormat: String, CaseIterable, Identifiable, Hashable {
         case .avif: return UTType("public.avif")
         case .bmp: return .bmp
         case .gif: return .gif
+        case .ico: return .ico
+        case .icns: return .icns
         case .mp3: return .mp3
         case .m4a: return .mpeg4Audio
         case .wav: return .wav
@@ -154,6 +163,7 @@ enum FileFormat: String, CaseIterable, Identifiable, Hashable {
         case .tar: return UTType("public.tar-archive")
         case .gz: return .gzip
         case .rar: return UTType("com.rarlab.rar-archive")
+        case .sevenZip: return UTType("org.7-zip.7-zip-archive")
         }
     }
 

@@ -61,10 +61,25 @@ struct ArchiveEngine: ConversionEngine {
             guard bsdtar.succeeded else {
                 throw AppError.toolFailed("rar", tr("Install unar to extract RAR archives: brew install unar", "Installiere unar, um RAR-Archive zu entpacken: brew install unar"))
             }
+        case .sevenZip:
+            // macOS's own tar (libarchive) reads 7Z; it can't decrypt, and says so ("… is encrypted, but currently not supported").
+            let result = try await Shell.run("/usr/bin/tar", ["-xf", archive.path, "-C", directory.path])
+            guard result.succeeded else {
+                throw Self.sevenZipFailure(archive, message: result.stderr)
+            }
         default:
             throw AppError.unsupportedConversion(format, .zip)
         }
         return 0
+    }
+
+    /// A 7Z archive that tar could not unpack: protected with a password, or damaged.
+    static func sevenZipFailure(_ archive: URL, message: String) -> AppError {
+        if message.lowercased().contains("encrypt") {
+            return .invalidInput(tr("\u{201C}\(archive.lastPathComponent)\u{201D} is protected with a password. twistel can\u{2019}t open 7Z archives with a password: open it with an archive app that asks for the password.",
+                                    "\u{201E}\(archive.lastPathComponent)\u{201C} ist mit einem Passwort geschützt. 7Z-Archive mit Passwort kann twistel nicht öffnen: Öffne es mit einem Packprogramm, das nach dem Passwort fragt."))
+        }
+        return .invalidInput(tr("\(archive.lastPathComponent) could not be read. It is damaged or incomplete.", "\(archive.lastPathComponent) konnte nicht gelesen werden. Die Datei ist beschädigt oder unvollständig."))
     }
 
     private func unreadable(_ archive: URL) -> AppError {

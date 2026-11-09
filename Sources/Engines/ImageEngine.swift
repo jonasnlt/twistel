@@ -320,11 +320,60 @@ struct ImageEngine: ConversionEngine {
             try ImageIOBridge.checkFits(width: Int(size.width), height: Int(size.height), format: request.target)
             let image = try ImageIOBridge.load(request.source)
             request.progress(0.3)
+            if FileFormat.iconTargets.contains(request.target) {
+                try IconWriter.write(image, to: request.destination, format: request.target)
+                request.progress(1)
+                return
+            }
             let quality = AppSettings.shared.jpegQuality
             try await ImageIOBridge.writeAnyFormat(image, to: request.destination, format: request.target, quality: quality) {
                 request.progress(0.3 + 0.7 * $0)
             }
         }
         request.progress(1)
+    }
+}
+
+/// Icons with several sizes in one file, made by macOS (ImageIO). A picture that is not square is fitted in the middle, the rest
+/// stays transparent. ICO: the six sizes Windows uses, up to 256 pixels (ImageIO takes no more than six pictures, none larger).
+/// ICNS: all ten pictures of a Mac icon, 16 to 512 points, each also at twice the pixels; without the resolution of each, ImageIO
+/// silently leaves two of them out.
+enum IconWriter {
+    static let icoSizes = [16, 24, 32, 48, 64, 256]
+    static let icnsSizes: [(pixels: Int, retina: Bool)] = [(16, false), (32, true), (32, false), (64, true), (128, false), (256, true),
+                                                           (256, false), (512, true), (512, false), (1024, true)]
+
+    static func write(_ image: CGImage, to url: URL, format: FileFormat) throws {
+        let pictures: [(image: CGImage, dpi: Int?)]
+        switch format {
+        case .ico: pictures = icoSizes.map { (square(image, side: $0), nil) }
+        case .icns: pictures = icnsSizes.map { (square(image, side: $0.pixels), $0.retina ? 144 : 72) }
+        default: throw AppError.unsupportedConversion(.png, format)
+        }
+        guard let type = format.utType,
+              let destination = CGImageDestinationCreateWithURL(url as CFURL, type.identifier as CFString, pictures.count, nil) else {
+            throw AppError.encodeFailed(url.lastPathComponent)
+        }
+        for picture in pictures {
+            let options: [CFString: Any] = picture.dpi.map { [kCGImagePropertyDPIWidth: $0, kCGImagePropertyDPIHeight: $0] } ?? [:]
+            CGImageDestinationAddImage(destination, picture.image, options as CFDictionary)
+        }
+        guard CGImageDestinationFinalize(destination) else { throw AppError.encodeFailed(url.lastPathComponent) }
+    }
+
+    /// The picture fitted into a transparent square, scaled down in halves first so small sizes stay smooth.
+    static func square(_ image: CGImage, side: Int) -> CGImage {
+        var source = image
+        while max(source.width, source.height) > side * 2 {
+            source = ImageIOBridge.scaled(source, to: CGSize(width: max(1, source.width / 2), height: max(1, source.height / 2)))
+        }
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return source }
+        context.interpolationQuality = .high
+        let scale = Double(side) / Double(max(source.width, source.height))
+        let width = Double(source.width) * scale, height = Double(source.height) * scale
+        context.draw(source, in: CGRect(x: (Double(side) - width) / 2, y: (Double(side) - height) / 2, width: width, height: height))
+        return context.makeImage() ?? source
     }
 }

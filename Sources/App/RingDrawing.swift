@@ -7,12 +7,37 @@ import SwiftUI
 ///     --run-tool ring --input <file> … --output <folder> --draw-window <picture.png> [--option ring=tools] [--option count=8]
 ///                     [--option highlight=2] [--option style=glass|solid|contrast] [--option appearance=dark] [--language de]
 ///                     [--option name=below|above] [--option preview=true] [--option items=pageNumbersPDF,watermarkPDF]
+///                     [--option fan=2] [--option sub=3] [--option edge=top|bottom|left|right] [--option edgeDistance=180]
+///                     (fan: the item whose presets are open; sub: the preset under the pointer; edge: the screen's edge that
+///                     close to the ring's middle, to see the fan turn away from it)
 ///     --run-tool more --input <file> … --output <folder> --draw-window <picture.png> [--option ring=tools] [--option text=pa]
 ///     --run-tool measureRing --input <file> … --output <folder> [--option ring=tools] [--option times=30]
 ///     --run-tool ringWords --input <file> --output <folder>      (the table of short words, as Markdown)
 ///     --run-tool float --input <file> … --output <folder> --draw-window <picture.png> [--option state=hover|drop] [--option expanded=true] [--option appearance=dark]
 ///     --run-tool floatWindow --input <file> … --output <folder>  (the real floating window, see-through: focus, level, one by one, removing down to one picture)
 ///     --run-tool terminalChoices --input <file> … --output <folder>  (the terminal programs offered and the folders for the files)
+/// Where a test picture pretends the screen ends (`edge=`): a dark band beyond it.
+struct ScreenEdgeMark: View {
+    var edge: String
+    var distance: CGFloat
+    var side: CGFloat
+
+    var body: some View {
+        let half = side / 2, band = max(0, half - distance)
+        ZStack {
+            switch edge {
+            case "top": Rectangle().fill(Color.black.opacity(0.75)).frame(width: side, height: band).position(x: half, y: band / 2)
+            case "bottom": Rectangle().fill(Color.black.opacity(0.75)).frame(width: side, height: band).position(x: half, y: side - band / 2)
+            case "left": Rectangle().fill(Color.black.opacity(0.75)).frame(width: band, height: side).position(x: band / 2, y: half)
+            case "right": Rectangle().fill(Color.black.opacity(0.75)).frame(width: band, height: side).position(x: side - band / 2, y: half)
+            default: EmptyView()
+            }
+        }
+        .frame(width: side, height: side)
+        .allowsHitTesting(false)
+    }
+}
+
 @MainActor
 enum RingDrawing {
     /// --option access=contrast: drawn as with "Increase contrast" (solid surfaces with strong edges, the contrast tones). Without it,
@@ -52,15 +77,41 @@ enum RingDrawing {
             let view = RadialView(frame: NSRect(x: 0, y: 0, width: RadialWheelView.side, height: RadialWheelView.side))
             let layout = RadialController.fill(view, ring: ring, urls: files, settings: AppSettings.shared)
             if highlight >= 0 { view.highlight(highlight) }
+            let fan = try options.value("fan", Int.self, default: -1)
+            if fan >= 0 {
+                let sub = try options.value("sub", Int.self, default: -1)
+                let edge = options.string("edge", default: "")
+                let distance = CGFloat(try options.value("edgeDistance", Double.self, default: 180))
+                let half = RadialWheelView.side / 2
+                view.center = NSPoint(x: half, y: half)
+                var area = CGRect(x: -half, y: -half, width: 2 * half, height: 2 * half)
+                switch edge {
+                case "top": area.size.height = half + distance
+                case "bottom": area = CGRect(x: -half, y: -distance, width: 2 * half, height: half + distance)
+                case "left": area = CGRect(x: -distance, y: -half, width: half + distance, height: 2 * half)
+                case "right": area.size.width = half + distance
+                case "": break
+                default: throw ToolDriver.DriverError.usage("edge is top, bottom, left or right.")
+                }
+                view.usableArea = area
+                view.showFan(fan, preset: sub >= 0 ? sub : nil)
+            }
             var content = view.content
             content.style = style == "glass" ? .glass : .solid(strongEdges: style == "contrast" || highContrast)
             let side = RadialWheelView.side
             // preview=true: the picture Finder drags along under the pointer (the middle of the ring), to judge what it covers.
             let preview = try options.value("preview", Bool.self, default: false)
             let dragged = NSWorkspace.shared.icon(forFile: files[0].path)
+            let edgeLine = options.string("edge", default: "")
+            let edgeDistance = CGFloat(try options.value("edgeDistance", Double.self, default: 180))
             try await draw(RadialWheelView(content: content)
                 .overlay { if preview { Image(nsImage: dragged).resizable().frame(width: 128, height: 128).opacity(0.8).offset(x: 14, y: 18) } }
+                .overlay { ScreenEdgeMark(edge: edgeLine, distance: edgeDistance, side: side) }
                 .background(Backdrop(dark: dark)), size: CGSize(width: side, height: side), dark: dark, to: picture)
+            if fan >= 0 {
+                return view.fanEntries.enumerated().map { "fan \($0.offset): \($0.element.shortLabel) | \($0.element.title)" }
+                    + ["fan first angle \(Int((view.fan?.first ?? 0) * 180 / .pi))°"]
+            }
             return layout.slots.map { "\($0.shortLabel) | \($0.title)\($0.missing.map { " (needs \($0.name))" } ?? "")" }
         case "more":
             guard let picture else { throw ToolDriver.DriverError.usage("more needs --draw-window <picture.png>.") }
@@ -334,6 +385,14 @@ enum RingDrawing {
             let short = both { action.shortLabel }
             let full = both { action.title }
             lines.append("| \(both { RingKind.actions.title }.0) | \(short.0) | \(full.0) | \(short.1) | \(full.1) |")
+        }
+        // The fans of the tools ring (1.1): every preset once, with "Customize …".
+        let presets = RingPresets.presets(for: .cropImage, formats: [.jpg]) + RingPresets.presets(for: .rotateImage, formats: [.jpg]).dropLast()
+            + RingPresets.presets(for: .compress, formats: [.mp4], ffmpeg: true)
+        for preset in presets {
+            let short = both { preset.shortLabel }
+            let full = both { preset.title }
+            lines.append("| \(both { RingKind.tools.title }.0) (Fächer) | \(short.0) | \(full.0) | \(short.1) | \(full.1) |")
         }
         let more = both { RingWords.moreLabel }
         let moreTitle = both { RingWords.moreTitle }

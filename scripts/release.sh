@@ -5,7 +5,7 @@
 #   dist/twistel-<Version>.dmg      disk image with the app and an "Applications" shortcut
 #   dist/SHA256SUMS.txt             checksums of the ZIP and the DMG
 # Only these four are replaced; anything else in the folder stays. Then it checks the signature, Hardened Runtime, entitlements,
-# debug strings and sizes. Stops at the first error.
+# debug strings, networking code and sizes. Stops at the first error.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,6 +45,9 @@ if LC_ALL=C grep -a -r -l "/Users/" "$APP" >/dev/null; then fail "path from /Use
 cmp -s LICENSE "$APP/Contents/Resources/LICENSE.txt" || fail "GPL-3.0 text missing in the app"
 [[ -f "$APP/Contents/Resources/LICENSES/Satsuma-MIT.txt" ]] || fail "Satsuma MIT notice missing in the app"
 echo "  ok   no paths from /Users/, license texts included"
+# No networking code: no networking frameworks linked, no networking APIs called (see scripts/check-no-network.sh).
+./scripts/check-no-network.sh "$APP" --sources Sources > /dev/null || { ./scripts/check-no-network.sh "$APP" --sources Sources | grep FOUND >&2; fail "networking code found"; }
+echo "  ok   no networking code (frameworks, symbols, selectors, web addresses, sources)"
 
 echo "==> ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"

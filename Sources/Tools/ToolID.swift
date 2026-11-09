@@ -48,6 +48,7 @@ enum ToolID: String, CaseIterable, Identifiable {
     case signPDF
     case comparePDF
     case burnSubtitles
+    case removeAudio
 
     var id: String { rawValue }
 
@@ -94,6 +95,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .signPDF: return tr("Sign PDF", "PDF unterschreiben")
         case .comparePDF: return tr("Compare PDFs", "PDFs vergleichen")
         case .burnSubtitles: return tr("Burn in subtitles", "Untertitel einbrennen")
+        case .removeAudio: return tr("Remove audio", "Ton entfernen")
         }
     }
 
@@ -135,6 +137,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .signPDF: return tr("Signing", "Wird unterschrieben")
         case .comparePDF: return tr("Comparing", "Wird verglichen")
         case .burnSubtitles: return tr("Burning in subtitles", "Untertitel werden eingebrannt")
+        case .removeAudio: return tr("Removing audio", "Ton wird entfernt")
         }
     }
 
@@ -178,6 +181,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .signPDF: return "signature"
         case .comparePDF: return "doc.text.magnifyingglass"
         case .burnSubtitles: return "captions.bubble"
+        case .removeAudio: return "speaker.slash"
         }
     }
 
@@ -189,7 +193,7 @@ enum ToolID: String, CaseIterable, Identifiable {
             return [.image, .document]
         case .editImage, .frameImage, .cropImage, .redactImage, .resizeImage, .rotateImage, .createPDF, .createCollage, .socialMedia, .removeBackground:
             return [.image]
-        case .trimVideo, .cropVideo, .changeVideoSpeed, .joinVideos, .videoSnapshots, .splitVideo, .redactVideo, .videoPresets, .burnSubtitles:
+        case .trimVideo, .cropVideo, .changeVideoSpeed, .joinVideos, .videoSnapshots, .splitVideo, .redactVideo, .videoPresets, .burnSubtitles, .removeAudio:
             return [.video]
         case .normalizeAudio, .audioToVideo, .trimAudio, .audioChannels, .redactAudio:
             return [.audio]
@@ -202,7 +206,7 @@ enum ToolID: String, CaseIterable, Identifiable {
 
     var arity: ToolArity {
         switch self {
-        case .compress, .editMetadata, .resizeImage, .rotateImage, .createPDF, .transcribe, .extractImages, .recognizeText, .readQR, .pdfPassword, .watermarkPDF, .pageNumbersPDF, .socialMedia, .removeBackground, .videoPresets, .pdfArchive, .comparePDF: return .any
+        case .compress, .editMetadata, .resizeImage, .rotateImage, .createPDF, .transcribe, .extractImages, .recognizeText, .readQR, .pdfPassword, .watermarkPDF, .pageNumbersPDF, .socialMedia, .removeBackground, .videoPresets, .pdfArchive, .comparePDF, .removeAudio: return .any
         case .createCollage, .joinVideos, .mergePDF: return .multiple
         default: return .single
         }

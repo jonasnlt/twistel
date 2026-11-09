@@ -93,7 +93,7 @@ final class ToolWindowManager: NSObject, NSWindowDelegate {
     static func windowClass(for tool: ToolID) -> WindowClass {
         switch tool {
         case .compress, .resizeImage, .createPDF, .mergePDF, .splitPDF, .audioChannels, .rotateImage, .transcribe, .extractImages, .recognizeText, .readQR, .pdfPassword,
-             .watermarkPDF, .pageNumbersPDF, .socialMedia:
+             .watermarkPDF, .pageNumbersPDF, .socialMedia, .removeAudio:
             return .compact
         case .editMetadata, .normalizeAudio, .organizePDF, .createCollage, .joinVideos, .audioToVideo, .trimAudio, .redactAudio:
             return .standard
@@ -106,7 +106,7 @@ final class ToolWindowManager: NSObject, NSWindowDelegate {
         switch tool {
         case .compress:
             return NSSize(width: 640, height: 560)
-        case .transcribe, .extractImages, .recognizeText, .readQR, .pdfPassword, .pdfArchive:
+        case .transcribe, .extractImages, .recognizeText, .readQR, .pdfPassword, .pdfArchive, .removeAudio:
             return NSSize(width: 640, height: 440)
         case .watermarkPDF, .pageNumbersPDF:
             return NSSize(width: 680, height: 560)
@@ -191,6 +191,7 @@ struct ToolRootView: View {
             case .signPDF: SignPDFToolView(session: session)
             case .comparePDF: ComparePDFToolView(session: session)
             case .burnSubtitles: BurnSubtitlesToolView(session: session)
+            case .removeAudio: RemoveAudioToolView(session: session)
             }
         }
         .frame(minWidth: 560, minHeight: 360)

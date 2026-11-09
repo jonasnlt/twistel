@@ -14,7 +14,7 @@ enum AppIdentity {
     /// Both builds, for messages about the other one.
     static let releaseName = "twistel"
     static let debugName = "twistel dev"
-    /// "1.0.0", and for twistel dev "1.0.0 (Dev)" (its Info.plist has the same numbers as the release).
+    /// "1.1.0", and for twistel dev "1.1.0 (Dev)" (its Info.plist has the same numbers as the release).
     static var versionText: String {
         let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         return short + (buildMark.map { " (\($0))" } ?? "")

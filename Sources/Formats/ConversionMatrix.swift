@@ -5,9 +5,14 @@ enum ConversionMatrix {
         let list: [FileFormat]
         switch source {
         case .jpg, .png:
-            list = FileFormat.imageTargets + [.docx]
-        case .webp, .heic, .tiff, .svg, .avif, .bmp:
+            list = FileFormat.imageTargets + [.docx] + FileFormat.iconTargets
+        case .heic, .svg:
+            list = FileFormat.imageTargets + FileFormat.iconTargets
+        case .webp, .tiff, .avif, .bmp:
             list = FileFormat.imageTargets
+        // Only written.
+        case .ico, .icns:
+            list = []
         case .mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff, .wma:
             list = FileFormat.audio
         case .mp4, .mov, .mkv, .webm, .avi, .wmv:
@@ -36,7 +41,7 @@ enum ConversionMatrix {
             list = [.pdf, .pptx, .odp, .jpg, .png]
         case .srt, .vtt:
             list = FileFormat.subtitles + [.txt]
-        case .zip, .tar, .gz, .rar:
+        case .zip, .tar, .gz, .rar, .sevenZip:
             list = FileFormat.archiveTargets
         }
         return list.filter { $0 != source }

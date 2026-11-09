@@ -123,3 +123,63 @@ enum Compressor {
         return max(24_000, min(320_000, bitrate))
     }
 }
+
+// MARK: Presets with a size limit (the fan of "Compress")
+
+extension Compressor {
+    /// The format a size-limited result gets: pictures and sound as with "Compress", videos always MP4 (H.264).
+    static func strictOutputFormat(for url: URL) -> FileFormat {
+        FileFormat.detect(url)?.category == .video ? .mp4 : outputFormat(for: url)
+    }
+
+    /// At most `limit` bytes, for sure: a result that is still larger is not saved, a message says so. A file already small enough
+    /// gets a message too, not a copy.
+    static func compressStrictly(_ url: URL, limit: Int64, to destination: URL, progress: @escaping (Double) -> Void) async throws {
+        guard let format = FileFormat.detect(url) else { throw AppError.unreadable(url) }
+        let size = FileSizeFormatter.size(of: url)
+        if size <= limit {
+            throw AppError.invalidInput(tr("\u{201C}\(url.lastPathComponent)\u{201D} is already smaller than \(FileSizeFormatter.string(limit)) (\(FileSizeFormatter.string(size))). Nothing was saved.",
+                                           "\u{201E}\(url.lastPathComponent)\u{201C} ist schon kleiner als \(FileSizeFormatter.string(limit)) (\(FileSizeFormatter.string(size))). Es wurde nichts gesichert."))
+        }
+        switch format.category {
+        case .image:
+            try await compressImage(url, format: format, preset: .balanced, resizeLongEdge: 0, targetBytes: limit, to: destination, progress: progress)
+        case .audio:
+            try await compressAudio(url, format: format, preset: .balanced, targetBytes: limit, to: destination, progress: progress)
+        case .video:
+            try await compressVideoStrictly(url, limit: limit, to: destination, progress: progress)
+        default:
+            throw AppError.invalidInput(tr("\(format.displayName) files can't be compressed to a size.", "\(format.displayName)-Dateien lassen sich nicht auf eine Größe verkleinern."))
+        }
+        let written = FileSizeFormatter.size(of: destination)
+        guard written > 0, written <= limit else {
+            try? FileManager.default.removeItem(at: destination)
+            throw AppError.invalidInput(tr("\u{201C}\(url.lastPathComponent)\u{201D} can\u{2019}t be made as small as \(FileSizeFormatter.string(limit)) (the smallest was \(FileSizeFormatter.string(written))). Nothing was saved; choose a larger size or \u{201C}Customize \u{2026}\u{201D}.",
+                                           "\u{201E}\(url.lastPathComponent)\u{201C} lässt sich nicht auf \(FileSizeFormatter.string(limit)) verkleinern (am kleinsten: \(FileSizeFormatter.string(written))). Es wurde nichts gesichert; wähle eine größere Grenze oder \u{201E}Anpassen \u{2026}\u{201C}."))
+        }
+    }
+
+    /// Like a video for sending (`VideoPresets`): data rate and picture size from the limit, then tried again with less until it fits.
+    static func compressVideoStrictly(_ url: URL, limit: Int64, to destination: URL, progress: @escaping (Double) -> Void) async throws {
+        let info = await MediaInfo.load(url)
+        var size = info.naturalSize
+        if size == .zero, let probed = await FFmpeg.probeStreams(url)?.size { size = probed }
+        guard size != .zero, info.duration > 0 else { throw AppError.unreadable(url) }
+        let audioBitrate = 96_000
+        let plan = VideoPresets.sendingPlan(duration: info.duration, sourceBitrate: info.estimatedBitrate, sourceSize: size,
+                                            longEdge: min(1920, Int(max(size.width, size.height))), maxBytes: limit, audioBitrate: audioBitrate)
+        var rate = plan.videoBitrate, edge = plan.longEdge
+        let tries = 4
+        for attempt in 0..<tries {
+            let done = 1 - pow(0.5, Double(attempt)), share = pow(0.5, Double(attempt + 1))
+            try await VideoPresets.write(url, crop: nil, output: VideoPresets.fitted(size, longEdge: edge), frameRateLimit: 30, videoBitrate: rate,
+                                         audioBitrate: audioBitrate, to: destination) { progress(done + $0 * share) }
+            let written = FileSizeFormatter.size(of: destination)
+            guard written > limit, attempt < tries - 1 else { break }
+            DiagnosticLog.log("video to a size: \(written) bytes over the limit at \(edge) px, trying again")
+            rate = max(150_000, Int(Double(rate) * Double(limit) / Double(written) * 0.9))
+            if attempt > 0 { edge = edge > 854 ? 854 : 640 }
+        }
+        progress(1)
+    }
+}

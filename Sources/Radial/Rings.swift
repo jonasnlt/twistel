@@ -263,6 +263,8 @@ enum RingEntryID: Hashable, Sendable {
     case tool(ToolID)
     case action(FileAction)
     case more
+    /// A preset in a tool's fan ("16:9", "5 MB"); never kept in the settings.
+    case preset(RingPreset)
 
     /// Kept in the settings, e.g. "convert.jpg", "tool.compress", "action.reveal".
     var key: String {
@@ -271,6 +273,7 @@ enum RingEntryID: Hashable, Sendable {
         case .tool(let tool): return "tool.\(tool.rawValue)"
         case .action(let action): return "action.\(action.rawValue)"
         case .more: return "more"
+        case .preset(let preset): return "preset.\(preset.tool.rawValue).\(preset.key)"
         }
     }
 
@@ -299,6 +302,8 @@ struct RingEntry: Identifiable, Hashable {
     let symbol: String
     /// A helper program it cannot do without and that is not installed: the item is grey.
     var missing: HelperProgram?
+    /// The fan of presets this item opens (the pointer rests on it, or moves out over its edge); empty: none.
+    var presets: [RingPreset] = []
 
     var isAvailable: Bool { missing == nil }
 }
@@ -358,6 +363,7 @@ enum RingWords {
         case .signPDF: return tr("Sign", "Signieren")
         case .comparePDF: return tr("Compare", "Vergleichen")
         case .burnSubtitles: return tr("Subtitles", "Untertitel")
+        case .removeAudio: return tr("Mute", "Stumm")
         }
     }
 
@@ -372,7 +378,8 @@ enum RingCatalog {
         guard !formats.isEmpty else { return [] }
         switch ring {
         case .convert: return ConversionMatrix.targets(for: formats).map(RingEntryID.convert)
-        case .tools: return ToolID.available(for: formats).map(RingEntryID.tool)
+        // Also a tool whose window can't take these files but whose presets can (cropping several pictures).
+        case .tools: return ToolID.allCases.filter { $0.applies(to: formats) || RingPresets.onlyThroughPresets($0, formats: formats) }.map(RingEntryID.tool)
         case .actions: return FileAction.allCases.map(RingEntryID.action)
         }
     }
@@ -400,11 +407,15 @@ enum RingCatalog {
                              symbol: target.category == .document && target != .pdf ? "doc.text" : (target == .pdf ? "doc.richtext" : target.category.symbol),
                              missing: HelperPrograms.missing(forConverting: formats, to: target))
         case .tool(let tool):
-            return RingEntry(id: id, shortLabel: RingWords.toolLabel(tool), title: tool.title, symbol: tool.symbol, missing: HelperPrograms.missing(forTool: tool))
+            let missing = HelperPrograms.missing(forTool: tool, formats: formats)
+            return RingEntry(id: id, shortLabel: RingWords.toolLabel(tool), title: tool.title, symbol: tool.symbol, missing: missing,
+                             presets: missing == nil ? RingPresets.presets(for: tool, formats: formats) : [])
         case .action(let action):
             return RingEntry(id: id, shortLabel: action.shortLabel, title: action.title, symbol: action.symbol, missing: nil)
         case .more:
             return RingEntry(id: .more, shortLabel: RingWords.moreLabel, title: RingWords.moreTitle, symbol: "ellipsis", missing: nil)
+        case .preset(let preset):
+            return preset.entry
         }
     }
 
@@ -497,7 +508,10 @@ enum RingBuilder {
         let shown = needsMore ? Array(chosen.prefix(places - 1)) : chosen
         var slots = shown.map { RingCatalog.entry($0, for: formats) }
         if needsMore { slots.append(RingCatalog.entry(.more, for: formats)) }
-        let all = applicable.map { RingCatalog.entry($0, for: formats) }
+        // "More …" also lists the presets of each tool (not "Customize …", which is the tool itself), so typing "16:9" finds one.
+        let all = applicable.map { RingCatalog.entry($0, for: formats) }.flatMap { entry in
+            [entry] + entry.presets.filter { $0.action != .customize }.map(\.entry)
+        }
         return RingLayout(slots: slots, all: all)
     }
 

@@ -83,8 +83,14 @@ struct MoreListView: View {
 
     private func row(_ entry: RingEntry, selected: Bool) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: entry.isAvailable ? entry.symbol : "arrow.down.circle")
-                .frame(width: 20)
+            Group {
+                if let ratio = RatioGlyph.ratio(entry.symbol) {
+                    RatioGlyph(ratio: ratio, side: 14)
+                } else {
+                    Image(systemName: entry.isAvailable ? entry.symbol : "arrow.down.circle")
+                }
+            }
+            .frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.title).lineLimit(1)
                 if let missing = entry.missing {

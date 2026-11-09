@@ -294,3 +294,88 @@ enum VideoOps {
         try await VideoEngine.ffmpegConvert(source: url, destination: destination, target: outputFormat, videoFilters: filters, videoBitrate: videoBitrate, audioBitrate: preset.audioBitrate, progress: progress)
     }
 }
+
+// MARK: Remove the sound
+
+extension VideoOps {
+    /// The containers Apple writes without re-encoding: everything else (MKV, WebM, AVI, WMV) goes through ffmpeg.
+    static let nativeAudioRemoval: Set<FileFormat> = [.mp4, .mov]
+
+    /// The video without its sound, in the same container. The pictures are copied, never encoded again: every packet stays the same,
+    /// and with it rotation, HDR and Dolby Vision. A video without sound gets a message, not a copy.
+    static func removeAudio(_ url: URL, to destination: URL, progress: @escaping (Double) -> Void) async throws {
+        let format = FileFormat.detect(url) ?? .mp4
+        if nativeAudioRemoval.contains(format), await MediaInfo.isNativelyReadable(url) {
+            let asset = AVURLAsset(url: url)
+            guard try await !asset.loadTracks(withMediaType: .audio).isEmpty else { throw noSound(url) }
+            let videos = try await asset.loadTracks(withMediaType: .video)
+            guard !videos.isEmpty else { throw AppError.invalidInput(tr("No video track found.", "Keine Videospur gefunden.")) }
+            let duration = try await asset.load(.duration)
+            let range = CMTimeRange(start: .zero, duration: duration)
+            let composition = AVMutableComposition()
+            for track in videos {
+                guard let copy = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
+                try copy.insertTimeRange(range, of: track, at: .zero)
+                copy.preferredTransform = try await track.load(.preferredTransform)
+            }
+            // Apple's timed metadata (e.g. the camera's tracks of an iPhone video) stays; places are filtered with the file's metadata.
+            for track in try await asset.loadTracks(withMediaType: .metadata) {
+                if let copy = composition.addMutableTrack(withMediaType: .metadata, preferredTrackID: kCMPersistentTrackID_Invalid) {
+                    try? copy.insertTimeRange(range, of: track, at: .zero)
+                }
+            }
+            let metadata = try await asset.load(.metadata)
+            try await AVExporter.export(asset: composition, to: destination, format: format, preset: AVAssetExportPresetPassthrough,
+                                        metadata: metadata, progress: progress)
+            return
+        }
+        guard FFmpeg.isAvailable else { throw AppError.ffmpegMissing(tr("removing the sound from \(format.displayName) videos", "das Entfernen des Tons aus \(format.displayName)-Videos")) }
+        guard await FFmpeg.probeHasAudio(url) ?? true else { throw noSound(url) }
+        let tags = await FFmpeg.tagKeys(of: [url])
+        // All streams but sound (pictures, subtitles, attachments); data streams Apple writes stop ffmpeg ("codec none"), so they stay out.
+        let args = ["-i", url.path, "-map", "0", "-map", "-0:a", "-map", "-0:d?", "-c", "copy"]
+            + Privacy.ffmpegArguments(keepsMetadata: true, tagKeys: tags) + [destination.path]
+        try await FFmpeg.run(args, purpose: tr("Removing the sound", "Ton entfernen"), duration: await FFmpeg.probeDuration(url), progress: progress)
+    }
+
+    static func noSound(_ url: URL) -> AppError {
+        .invalidInput(tr("\u{201C}\(url.lastPathComponent)\u{201D} has no sound to remove.", "\u{201E}\(url.lastPathComponent)\u{201C} hat keinen Ton, der sich entfernen ließe."))
+    }
+}
+
+// MARK: 1080p and 720p (the fan of "Compress")
+
+extension VideoOps {
+    /// The box a video must fit in, turned as it is shown: 1920 × 1080 for 1080p (or 1080 × 1920 standing), 1280 × 720 for 720p.
+    static func box(lines: Int, for size: CGSize) -> CGSize {
+        let long = CGFloat(lines == 1080 ? 1920 : 1280), short = CGFloat(lines)
+        return size.width >= size.height ? CGSize(width: long, height: short) : CGSize(width: short, height: long)
+    }
+
+    /// The video made no larger than 1080p or 720p, as MP4 (H.264, HDR becomes normal colours as with "Compress"); never enlarged (a
+    /// video that already fits gets a message). Apple's export presets were not used: they keep a standing 4:3 video at 1440 × 1920 and
+    /// can make the file larger than an HEVC original. Here the size is exact and the data rate at most 8 (1080p) or 5 (720p) Mbit/s
+    /// and never more than 80 % of the original's; a result that is not smaller than the original is not saved.
+    static func shrink(_ url: URL, lines: Int, to destination: URL, progress: @escaping (Double) -> Void) async throws {
+        let info = await MediaInfo.load(url)
+        var size = info.naturalSize
+        if size == .zero, let probed = await FFmpeg.probeStreams(url)?.size { size = probed }
+        guard size != .zero else { throw AppError.unreadable(url) }
+        let box = box(lines: lines, for: size)
+        guard size.width > box.width || size.height > box.height else {
+            throw AppError.invalidInput(tr("\u{201C}\(url.lastPathComponent)\u{201D} is already \(lines)p or smaller (\(Int(size.width)) × \(Int(size.height))). Nothing was saved.",
+                                           "\u{201E}\(url.lastPathComponent)\u{201C} hat schon höchstens \(lines)p (\(Int(size.width)) × \(Int(size.height))). Es wurde nichts gesichert."))
+        }
+        let scale = min(box.width / size.width, box.height / size.height)
+        let output = CGSize(width: max(2, (size.width * scale / 2).rounded(.down) * 2), height: max(2, (size.height * scale / 2).rounded(.down) * 2))
+        let wanted = lines == 1080 ? 8_000_000 : 5_000_000
+        let rate = info.estimatedBitrate > 0 ? min(wanted, max(Int(info.estimatedBitrate * 0.8), 1_000_000)) : wanted
+        try await VideoPresets.write(url, crop: nil, output: output, frameRateLimit: 60, videoBitrate: rate, audioBitrate: 128_000, to: destination, progress: progress)
+        let original = FileSizeFormatter.size(of: url), written = FileSizeFormatter.size(of: destination)
+        if written >= original {
+            try? FileManager.default.removeItem(at: destination)
+            throw AppError.invalidInput(tr("\u{201C}\(url.lastPathComponent)\u{201D} would not get smaller at \(lines)p (\(FileSizeFormatter.string(written)) instead of \(FileSizeFormatter.string(original))). Nothing was saved.",
+                                           "\u{201E}\(url.lastPathComponent)\u{201C} würde mit \(lines)p nicht kleiner (\(FileSizeFormatter.string(written)) statt \(FileSizeFormatter.string(original))). Es wurde nichts gesichert."))
+        }
+    }
+}

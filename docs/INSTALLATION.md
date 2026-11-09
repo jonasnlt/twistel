@@ -1,6 +1,6 @@
 # Installing twistel
 
-For twistel 1.0.0.
+For twistel 1.1.0.
 
 The app is not notarized by Apple (that needs a paid developer account). macOS therefore warns the first time you open it; step 3
 shows how to open it anyway. Everything else works like any other app.
@@ -25,23 +25,23 @@ Download from the [Releases page](https://github.com/jonasnlt/twistel/releases):
 
 | File | What |
 | --- | --- |
-| `twistel-1.0.0.dmg` | disk image with the app and a shortcut to Applications (recommended) |
-| `twistel-1.0.0.zip` | the same app as a ZIP |
+| `twistel-1.1.0.dmg` | disk image with the app and a shortcut to Applications (recommended) |
+| `twistel-1.1.0.zip` | the same app as a ZIP |
 | `SHA256SUMS.txt` | checksums of both files |
 
 With the DMG:
 
-1. Double-click `twistel-1.0.0.dmg`. A window with **twistel** and **Applications** opens.
+1. Double-click `twistel-1.1.0.dmg`. A window with **twistel** and **Applications** opens.
 2. Drag **twistel** onto **Applications**. Important: only the copy in Applications gets the entries in the Finder’s right-click menu.
-3. Eject the disk image (in the Finder sidebar, click ⏏ next to “twistel 1.0.0”). The DMG file can go to the Trash afterwards.
+3. Eject the disk image (in the Finder sidebar, click ⏏ next to “twistel 1.1.0”). The DMG file can go to the Trash afterwards.
 
-Or with the ZIP: double-click `twistel-1.0.0.zip`, then drag the resulting `twistel.app` into **Applications**.
+Or with the ZIP: double-click `twistel-1.1.0.zip`, then drag the resulting `twistel.app` into **Applications**.
 
 Optional: check that the download is intact (in Terminal, in the folder of the file). The output must match the line in
 `SHA256SUMS.txt`:
 
 ```bash
-shasum -a 256 twistel-1.0.0.dmg
+shasum -a 256 twistel-1.1.0.dmg
 ```
 
 ## 3. First start: “Open Anyway”

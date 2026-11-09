@@ -22,6 +22,10 @@ enum RingDispatch {
             JobRunner.shared.convert(files, to: target)
         case .tool(let tool):
             DiagnosticLog.log("tool \(tool.rawValue) quickRun=\(quickRun) group=\(tool.group.rawValue)")
+            if RingPresets.onlyThroughPresets(tool, formats: files.compactMap(FileFormat.detect)) {
+                RingPresets.severalFilesNote(tool, files: files).start()
+                return
+            }
             guard decision(for: tool, quickRun: quickRun) == .run else {
                 ToolWindowManager.shared.open(tool, files: files)
                 return
@@ -43,6 +47,14 @@ enum RingDispatch {
             }
         case .action(let action):
             FileActions.perform(action, on: files, at: point)
+        case .preset(let preset):
+            DiagnosticLog.log("preset \(preset.tool.rawValue) \(preset.key) for \(files.count) files")
+            // Option means nothing here: the preset's values are fixed, and "Customize …" is the window.
+            guard preset.action != .customize else {
+                ToolWindowManager.shared.open(preset.tool, files: files)
+                return
+            }
+            for job in RingPresets.jobs(preset, files: files) { job.start() }
         case .more:
             break
         }
